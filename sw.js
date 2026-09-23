@@ -1,0 +1,41 @@
+/* Offline support. Bump VERSION whenever the app changes so phones pick up the new files. */
+const VERSION = 'logbook-2026-09-23a';
+const SHELL = ['./', './index.html', './config.js', './vendor/supabase.js', './program.js', './mind.js', './app.js',
+  './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/favicon.svg'];
+
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== 'fonts').map(k => caches.delete(k))))
+    .then(() => self.clients.claim()));
+});
+
+function withTimeout(p, ms) { return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]); }
+
+self.addEventListener('fetch', e => {
+  const req = e.request; if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.hostname.endsWith('supabase.co') || url.hostname.endsWith('supabase.in')) return; // always live
+  if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
+    e.respondWith(caches.open('fonts').then(async c => {
+      const hit = await c.match(req); if (hit) return hit;
+      const res = await fetch(req); if (res.ok || res.type === 'opaque') c.put(req, res.clone()); return res;
+    }));
+    return;
+  }
+  if (url.origin !== location.origin) return;
+  // App files: fresh from the network when there's signal (3 s max), otherwise from the phone.
+  e.respondWith((async () => {
+    const cache = await caches.open(VERSION);
+    try {
+      const res = await withTimeout(fetch(req), 3000);
+      if (res.ok) cache.put(req, res.clone());
+      return res;
+    } catch (err) {
+      const hit = await cache.match(req, { ignoreSearch: true }) || (req.mode === 'navigate' ? await cache.match('./index.html') : null);
+      if (hit) return hit;
+      throw err;
+    }
+  })());
+});
