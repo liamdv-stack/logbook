@@ -4,6 +4,6 @@
    the database only lets a signed-in user read or write their own rows.
    Never paste the "service_role" / "secret" key here. */
 window.APP_CONFIG = {
-  supabaseUrl: 'PASTE_PROJECT_URL_HERE',   // looks like https://abcdefghijk.supabase.co
-  supabaseKey: 'PASTE_ANON_KEY_HERE',      // long key starting with eyJ… or sb_publishable_…
+  supabaseUrl: 'https://fzzeswpuuobfwkyfpqxd.supabase.co',   // looks like https://abcdefghijk.supabase.co
+  supabaseKey: 'sb_publishable_ezDBfhwNq2gBLcwDg3_t8Q_HKYRFqDz',      // long key starting with eyJ… or sb_publishable_…
 };
