@@ -1,7 +1,7 @@
 /* Offline support. Bump VERSION whenever the app changes so phones pick up the new files. */
-const VERSION = 'logbook-2026-09-23a';
-const SHELL = ['./', './index.html', './config.js', './vendor/supabase.js', './program.js', './mind.js', './app.js',
-  './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/favicon.svg'];
+const VERSION = 'logbook-2026-09-23b';
+const SHELL = ['./', './index.html', './config.js', './supabase.js', './program.js', './mind.js', './app.js',
+  './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './favicon.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
