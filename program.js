@@ -1,7 +1,7 @@
 /* ---------- PROGRAM DATA (from Advanced_Calisthenics_16_Week_Workbook.xlsx) ---------- */
 const PHASES = [
   { name: 'Foundation', from: 1, to: 4, rir: '2–3 RIR',
-    goal: 'Test baselines, set starting levels, learn every pattern, make wrist prep and the hip circuit automatic.',
+    goal: 'Test baselines, set starting levels, learn every pattern, make wrist prep and the shoulder routine automatic.',
     rule: 'Reps first — no extra sets in weeks 1–4. Level up only at the top of the range, clean.',
     skill: 'Chest-to-wall handstand (build to 30 s), box pistol, tuck L-sit, false-grip hang.' },
   { name: 'Build', from: 5, to: 8, rir: '1–2 RIR',
@@ -50,16 +50,18 @@ const BRANCHES = {
 const PROGRAM = {
   0: {
     title: 'Lower Body + Pistol + Core', short: 'Lower + Pistol',
-    intro: 'Skill work (pistol, L-sit) goes first while fresh and never to failure. Match reps to the weaker left leg and keep the pelvis level.',
-    warmTime: '10–12 min',
+    intro: 'Skill work (pistol, L-sit) goes first while fresh and never to failure. Shoulder and upper-back routine in the warm-up every training day — it is what unlocks the handstand.',
+    warmTime: '12–15 min',
     warm: [
       { t: '2–3 min easy movement', d: 'Jog on the spot, leg swings, arm swings' },
-      { t: 'Side-lying hip abduction', d: '12–15 per side · toes slightly down, lift from the hip' },
-      { t: 'Banded clamshell', d: '12–15 per side · pelvis still' },
-      { t: 'Banded lateral (monster) walk', d: '10 steps each way · knees out, stay low' },
-      { t: 'Single-leg glute bridge', d: '8–10 per side · hips level' },
-      { t: 'Single-leg balance', d: '20–30 s per side · reach, or light DB in the opposite hand' },
-      { t: 'Step-up with knee drive', d: '8 per side · no hip drop', minWeek: 5 },
+      { t: 'Banded lateral (monster) walk', d: '10 steps each way · knees out, stay low — your one hip-insurance move' },
+      { t: 'Bench lat stretch with PVC', d: '3 × 5 slow breaths · kneel, elbows on the bench, underhand grip, sit the hips back, let the chest sink', q: 'bench lat stretch pvc pipe kneeling' },
+      { t: 'Thread-the-needle rotation', d: '8 per side, on all fours', q: 'thread the needle thoracic rotation' },
+      { t: 'Bench thoracic extension', d: '2 × 30 s · kneel, hands behind head, elbows on the bench, drop the chest', q: 'bench thoracic extension stretch hands behind head' },
+      { t: 'Cross-body rear-shoulder stretch', d: '2 × 30 s per side', q: 'cross body shoulder stretch posterior' },
+      { t: 'Doorway pec stretch', d: '2 × 30 s per side · feel it in the chest, not the front of the shoulder', q: 'doorway pec stretch' },
+      { t: 'Back-to-wall shoulder raise, ribs down', d: '2 × 8 slow · stop where the lower back starts to arch', q: 'back to wall shoulder flexion ribs down' },
+      { t: 'Band overhead raise, lying down', d: '2 × 10 · ribs pulled down, lower back flat', q: '90 90 banded overhead raise ribs down' },
       { t: 'Ankle knee-to-wall', d: '8–10 per side' },
       { t: 'Deep squat hold', d: '2 × 30 s' },
       { t: 'Half-kneeling hip-flexor mobilisation', d: '30 s per side' },
@@ -102,7 +104,9 @@ const PROGRAM = {
       { t: 'Band pull-aparts / external rotations', d: '8–12' },
       { t: 'Active hang or scapular pull-ups', d: '5–8' },
       { t: '1 easy pike hold', d: '' },
-      { t: 'Short hip circuit', d: 'Any two moves from the hip list — non-negotiable every training day' },
+      { t: 'Bench lat stretch with PVC', d: '2 × 5 slow breaths', q: 'bench lat stretch pvc pipe kneeling' },
+      { t: 'Cross-body rear-shoulder stretch', d: '30 s per side', q: 'cross body shoulder stretch posterior' },
+      { t: 'Back-to-wall shoulder raise, ribs down', d: '1 × 8 slow', q: 'back to wall shoulder flexion ribs down' },
     ],
     coolTime: '5–8 min',
     cool: [
@@ -134,7 +138,7 @@ const PROGRAM = {
   3: {
     title: 'Pull Emphasis + Muscle-Up Prep', short: 'Pull + Muscle-up',
     intro: 'Muscle-up prep goes first, fresh and explosive — never grind it. Forearm work at the end is tendon insurance against golfer’s elbow.',
-    warmTime: '~10 min',
+    warmTime: '~15 min',
     warm: [
       { t: '2–3 min easy movement', d: '' },
       { t: 'Band pull-aparts', d: '12' },
@@ -145,13 +149,18 @@ const PROGRAM = {
       { t: 'Wrist circles + palms-down / palms-up rocks', d: '30 s each' },
       { t: 'False-grip hang', d: '2 × 10–15 s · heel of the hand on top' },
       { t: 'Ramp-up', d: '3–5 easy pull-ups or rows' },
-      { t: 'Short hip circuit', d: 'Banded lateral walk 10 each way + single-leg balance 20 s per side' },
+      { t: 'Bench lat stretch with PVC', d: '3 × 5 slow breaths · kneel, elbows on the bench, underhand grip, sit the hips back, let the chest sink', q: 'bench lat stretch pvc pipe kneeling' },
+      { t: 'Thread-the-needle rotation', d: '8 per side, on all fours', q: 'thread the needle thoracic rotation' },
+      { t: 'Bench thoracic extension', d: '2 × 30 s · kneel, hands behind head, elbows on the bench, drop the chest', q: 'bench thoracic extension stretch hands behind head' },
+      { t: 'Cross-body rear-shoulder stretch', d: '2 × 30 s per side', q: 'cross body shoulder stretch posterior' },
+      { t: 'Doorway pec stretch', d: '2 × 30 s per side · feel it in the chest, not the front of the shoulder', q: 'doorway pec stretch' },
+      { t: 'Back-to-wall shoulder raise, ribs down', d: '2 × 8 slow · stop where the lower back starts to arch', q: 'back to wall shoulder flexion ribs down' },
+      { t: 'Band overhead raise, lying down', d: '2 × 10 · ribs pulled down, lower back flat', q: '90 90 banded overhead raise ribs down' },
     ],
     coolTime: '5 min',
     cool: [
       { t: 'Easy walk + breathing', d: '3 min' },
       { t: 'Lat stretch', d: 'Hang or child’s-pose reach · 30–45 s' },
-      { t: 'Doorway pec stretch', d: '30–45 s' },
       { t: 'Biceps / forearm-flexor stretch', d: 'Palm on wall, fingers pointing down · 30–45 s' },
       { t: 'Wrist-extension stretch', d: '30–45 s' },
     ],
@@ -187,14 +196,19 @@ const PROGRAM = {
       { t: 'Hollow-body hold', d: '2 × 20 s' },
       { t: '1 easy pike hold', d: '' },
       { t: 'Ramp-up', d: '2 × 10–15 s chest-to-wall handstand' },
-      { t: 'Short hip circuit', d: 'Clamshell 12 per side + single-leg glute bridge 8 per side' },
+      { t: 'Bench lat stretch with PVC', d: '3 × 5 slow breaths · kneel, elbows on the bench, underhand grip, sit the hips back, let the chest sink', q: 'bench lat stretch pvc pipe kneeling' },
+      { t: 'Thread-the-needle rotation', d: '8 per side, on all fours', q: 'thread the needle thoracic rotation' },
+      { t: 'Bench thoracic extension', d: '2 × 30 s · kneel, hands behind head, elbows on the bench, drop the chest', q: 'bench thoracic extension stretch hands behind head' },
+      { t: 'Cross-body rear-shoulder stretch', d: '2 × 30 s per side', q: 'cross body shoulder stretch posterior' },
+      { t: 'Doorway pec stretch', d: '2 × 30 s per side · feel it in the chest, not the front of the shoulder', q: 'doorway pec stretch' },
+      { t: 'Back-to-wall shoulder raise, ribs down', d: '2 × 8 slow · stop where the lower back starts to arch', q: 'back to wall shoulder flexion ribs down' },
+      { t: 'Band overhead raise, lying down', d: '2 × 10 · ribs pulled down, lower back flat', q: '90 90 banded overhead raise ribs down' },
     ],
     coolTime: '5–8 min',
     cool: [
       { t: 'Easy walk + breathing', d: '3 min' },
       { t: 'Wrist-flexor stretch', d: 'Palms on the floor, fingers back · 30–45 s' },
       { t: 'Wrist-extensor stretch', d: '30–45 s' },
-      { t: 'Doorway pec stretch', d: '30–45 s' },
       { t: 'Front-of-shoulder stretch', d: '30–45 s' },
       { t: 'Seated hamstring stretch', d: 'L-sit compression · 30–45 s' },
     ],
@@ -219,7 +233,7 @@ const PROGRAM = {
 const REST_DAYS = {
   2: { title: 'Rest + optional grease the groove', rule: 'Stop at 50–60% effort. Never to failure.',
     items: [
-      { t: 'Hip-stability circuit', d: 'Side-lying abduction, clamshell, lateral walk, single-leg bridge, balance' },
+      { t: 'Shoulder + upper-back routine', d: 'The full 7-minute routine from your training days — the rest day counts toward the weekly dose', q: 'bench lat stretch pvc pipe kneeling' },
       { t: 'Chest-to-wall handstand', d: '2–3 × 20 s' },
       { t: 'Dead hang', d: '2 × 30 s' },
       { t: 'Easy walk', d: '30–45 min' },
@@ -250,6 +264,7 @@ const TESTS = [
   { k: 'chest', t: 'Chest', u: 'cm', group: 'body' },
   { k: 'thigh', t: 'Thigh', u: 'cm', group: 'body' },
   { k: 'waist', t: 'Waist', u: 'cm', group: 'body' },
+  { k: 'wallgap', t: 'Wall gap — thumbs to wall, lower back flat', u: 'cm', group: 'test' },
   { k: 'hs', t: 'Chest-to-wall handstand', u: 's', group: 'test' },
   { k: 'fs', t: 'Best freestanding', u: 's', group: 'test' },
   { k: 'push', t: 'Max push-ups', u: 'reps', group: 'test' },
@@ -262,6 +277,7 @@ const TESTS = [
   { k: 'fgh', t: 'False-grip hang', u: 's', group: 'test' },
 ];
 const PREV_BASELINE = { bw: 56.6, push: 20, dip: 7, plank: 105 };
+const KNOWN_VALUES = { 4: { wallgap: 5 } }; // measured 14 Oct 2026, before the shoulder routine started
 
 /* Yoga on rest days — easy, never stretched into pain. Static holds belong on rest days (workbook rule 6). */
 const YOGA = {
@@ -273,6 +289,7 @@ const YOGA = {
     { t: 'Half splits', d: '45 s per side', q: 'half splits yoga pose' },
     { t: 'Bridge pose', d: '3 × 20 s · hips level', q: 'bridge pose yoga' },
     { t: 'Garland squat (malasana)', d: '60 s · heels down', q: 'malasana garland pose' },
+    { t: 'Puppy pose', d: '60 s · opens the lats and mid-back for handstands', q: 'puppy pose yoga' },
     { t: 'Reclined figure-four', d: '60 s per side', q: 'reclined figure four stretch' },
     { t: 'Supine twist', d: '45 s per side', q: 'supine twist yoga' },
     { t: 'Legs up the wall', d: '2 min · slow breathing', q: 'legs up the wall pose' },

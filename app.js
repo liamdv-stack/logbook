@@ -27,13 +27,13 @@ const phaseOf = w => PHASES.find(p => w >= p.from && w <= p.to) || PHASES[0];
 
 /* ---------- STATE ---------- */
 const LS = 'cal16-state-v1';
-let S = { settings: { startDate: '2026-09-21', branch: 'B', _u: 0 }, bw: { entries: {}, _u: 0 }, sessions: {}, checkins: {}, weeks: {}, mind: {}, mindMeta: null };
+let S = { settings: { startDate: '2026-09-21', branch: 'B', height: '172', age: '', _u: 0 }, bw: { entries: {}, _u: 0 }, sessions: {}, checkins: {}, weeks: {}, food: {}, foodMeta: null };
 let dirty = new Set();
 try {
   const raw = localStorage.getItem(LS);
   if (raw) { const o = JSON.parse(raw); if (o && o.S) { S = Object.assign(S, o.S); dirty = new Set(o.dirty || []); } }
 } catch (e) { }
-if (!S.mind) S.mind = {};
+if (!S.food) S.food = {};
 function persist() { try { localStorage.setItem(LS, JSON.stringify({ S, dirty: [...dirty] })); } catch (e) { } }
 
 let V = { tab: 'day', w: 1, d: 0, showRed: false, cmpA: '', cmpB: '', cmpSlot: 'front' };
@@ -47,20 +47,20 @@ goToday();
 const CFG = window.APP_CONFIG || {};
 let sb = null, user = null, syncState = 'local', lastSyncErr = '';
 const timers = {}, inflight = {};
-const COLLS = ['sessions', 'checkins', 'weeks', 'mind'];
+const COLLS = ['sessions', 'checkins', 'weeks', 'food'];
 function getDoc(path) {
   const [c, id] = path.split('/');
-  if (c === 'meta') return id === 'settings' ? S.settings : id === 'bw' ? S.bw : id === 'mind' ? mindMeta() : null;
+  if (c === 'meta') return id === 'settings' ? S.settings : id === 'bw' ? S.bw : id === 'food' ? foodMeta() : id === 'mind' ? S.mindMeta : null;
   return S[c] ? S[c][id] : null;
 }
 function setDocLocal(path, data) {
   const [c, id] = path.split('/');
-  if (c === 'meta') { if (id === 'settings') S.settings = data; else if (id === 'bw') S.bw = data; else if (id === 'mind') S.mindMeta = data; }
+  if (c === 'meta') { if (id === 'settings') S.settings = data; else if (id === 'bw') S.bw = data; else if (id === 'food') S.foodMeta = data; else if (id === 'mind') S.mindMeta = data; }
   else { if (!S[c]) S[c] = {}; S[c][id] = data; }
 }
 function allPaths() {
   const out = ['meta/settings', 'meta/bw'];
-  if (S.mindMeta) out.push('meta/mind');
+  if (S.foodMeta) out.push('meta/food');
   COLLS.forEach(c => Object.keys(S[c] || {}).forEach(id => out.push(c + '/' + id)));
   return out;
 }
@@ -201,11 +201,14 @@ function history(ex, w, d) {
       if (def.track !== ex.track) continue;
       const e = s.ex[def.id]; if (!e) continue;
       const reps = (e.sets || []).filter(x => x && x.d && num(x.r) != null).map(x => num(x.r));
-      if (reps.length && (!best || o > best.o)) best = { o, week: s.week, day: s.day, reps, lvl: e.lvl || '', light: s.light };
+      if (reps.length && (!best || o > best.o)) best = { o, week: s.week, day: s.day, reps, lvl: e.lvl || '', load: e.load || '', label: lvlLabel(e), light: s.light };
     }
   }
   return best;
 }
+const WEIGHTS = ['Bodyweight'].concat(Array.from({ length: 30 }, (_, i) => ((i + 1) * 2) + ' kg'));
+function lvlOptions(ex) { return ex.ladder ? LADDERS[ex.ladder] : WEIGHTS; }
+function lvlLabel(e) { return [e && e.lvl, e && e.load].filter(x => x && String(x).trim()).join(' · '); }
 function unitWord(ex) { return ex.unit === 'reps' ? 'reps' : ex.unit === 's' ? 's' : ex.unit; }
 function plan(ex, w, d, light) {
   const n = setsFor(ex, w); const h = history(ex, w, d);
@@ -292,6 +295,7 @@ function renderDay() {
   if (w === 9) h += `<div class="banner warn"><b>Deload week.</b> About half the sets, same exercises, moderate effort. One easy week costs no muscle.</div>`;
   if (w >= 10 && w <= 13) h += `<div class="banner info"><b>Skill + Strength block.</b> Take the final set of each strength exercise to 0–1 in reserve.</div>`;
 
+  h += foodBar(keyOf(dt));
   h += bwRow(dt);
   if (d === 0 && (CHECKIN_WEEKS.includes(w) || w === 9)) h += renderCheckin(w);
 
@@ -309,7 +313,7 @@ function renderDay() {
   // workout
   if (light === 'red' && !V.showRed) {
     h += `<div class="sec"><h3>Workout</h3></div>
-      <div class="banner bad"><b>Recovery day.</b> Skip the planned session. Do the hip circuit and gentle mobility instead, and regress whatever hurts next time. If the pain is sharp or keeps coming back, get it assessed.
+      <div class="banner bad"><b>Recovery day.</b> Skip the planned session. Do the shoulder routine and gentle mobility instead, and regress whatever hurts next time. If the pain is sharp or keeps coming back, get it assessed.
       <button class="big ghost" data-a="showred">Show the workout anyway</button></div>`;
   } else {
     const exs = P.ex;
@@ -369,7 +373,7 @@ function demoQuery(ex, lvl) {
   return q;
 }
 function exLevel(ex, w, d) { const s = peekSess(w, d); const e = s?.ex?.[ex.id]; if (e && e.lvl) return e.lvl; const h = history(ex, w, d); return h ? h.lvl : ''; }
-const NO_DEMO = /easy movement|easy general|easy walk|relaxed walk|family walk|ramp-up|short hip circuit|^mobility$|gentle mobility/i;
+const NO_DEMO = /easy movement|easy general|easy walk|relaxed walk|family walk|ramp-up|^mobility$|gentle mobility/i;
 const ITEM_Q = {
   'Banded lateral (monster) walk': 'banded monster walk', 'Ankle knee-to-wall': 'knee to wall ankle mobility',
   'Wrist circles + gentle wrist-loading rocks': 'wrist warm up for handstand', 'Band pull-aparts / external rotations': 'band pull apart',
@@ -408,8 +412,13 @@ function exCard(ex, w, d, s, light) {
       <button class="tick" data-a="tick" data-ex="${ex.id}" data-i="${i}" aria-pressed="${!!st.d}" aria-label="Set ${i + 1} done">✓</button></div>`;
   }
   const hi = pl.h;
-  const last = hi ? `<div class="last">Last time (Wk ${hi.week} ${DAY_NAMES[hi.day].slice(0, 3)}): <b class="num">${hi.reps.join(' · ')}</b>${hi.lvl ? ' @ ' + esc(hi.lvl) : ''}</div>` : '';
-  const lvlPh = e.lvl ? '' : (hi && hi.lvl && !pl.levelUp ? hi.lvl : (ex.ladder ? 'e.g. ' + LADDERS[ex.ladder][0] : 'e.g. bodyweight, +5 kg'));
+  const last = hi ? `<div class="last">Last time (Wk ${hi.week} ${DAY_NAMES[hi.day].slice(0, 3)}): <b class="num">${hi.reps.join(' · ')}</b>${hi.label ? ' @ ' + esc(hi.label) : ''}</div>` : '';
+  const opts = lvlOptions(ex); const cur = e.lvl || ''; const custom = !!cur && !opts.includes(cur); const other = custom || !!(V.other && V.other[ex.id]);
+  const lvlPh = cur ? '' : (hi && hi.lvl && !pl.levelUp ? 'Last: ' + hi.lvl : (ex.ladder ? 'Choose level' : 'Choose weight'));
+  const lvlH = `<div class="lvl"><label for="lvl-${ex.id}">${ex.ladder ? 'Level' : 'Weight'}</label>
+      <select id="lvl-${ex.id}" data-f="lvlsel" data-ex="${ex.id}"><option value="">${esc(lvlPh)}</option>${opts.map(o => `<option value="${esc(o)}" ${o === cur ? 'selected' : ''}>${esc(o)}</option>`).join('')}<option value="__other" ${other ? 'selected' : ''}>Other…</option></select></div>
+    ${other ? `<div class="lvl"><label for="lvlo-${ex.id}">Other</label><input id="lvlo-${ex.id}" data-f="lvl" data-ex="${ex.id}" value="${esc(custom ? cur : '')}" placeholder="Type the variation" autocomplete="off"></div>` : ''}
+    ${ex.ladder ? `<div class="lvl"><label for="load-${ex.id}">Load</label><input id="load-${ex.id}" data-f="load" data-ex="${ex.id}" value="${esc(e.load || '')}" placeholder="${hi && hi.load && !pl.levelUp ? 'Last: ' + esc(hi.load) : 'e.g. +5 kg, green band, box 45 cm'}" autocomplete="off"></div>` : ''}`;
   const branch = ex.branch ? `<p><b>Your branch ${esc(S.settings.branch)}:</b> ${esc(BRANCHES[S.settings.branch].plan)} ${esc(BRANCHES[S.settings.branch].next)}</p>` : '';
   const total = ex.track === 'lsit' ? `<div class="total num">Total today: <b>${(e.sets || []).filter(x => x && x.d).reduce((a, x) => a + (num(x.r) || 0), 0)} s</b> of ~60 s</div>` : '';
   const fin = (w >= 10 && w <= 13 && ex.kind !== 'free') ? `<div class="fin">Final set: 0–1 in reserve</div>` : '';
@@ -424,7 +433,7 @@ function exCard(ex, w, d, s, light) {
     <div class="meta"><span><b class="num">${rows}</b> × ${esc(ex.reps)}${rows !== pl.n ? ` <span class="muted">(plan ${pl.n})</span>` : ''}</span><span>RIR <b>${esc(ex.rir)}</b></span><span>Rest <b>${esc(ex.restTxt)}</b></span></div>
     ${hint ? `<div class="hint ${hcls}">${hint}</div>` : ''}
     ${last}
-    <div class="lvl"><label for="lvl-${ex.id}">Level / load</label><input id="lvl-${ex.id}" data-f="lvl" data-ex="${ex.id}" value="${esc(e.lvl || '')}" placeholder="${esc(lvlPh)}" ${ex.ladder ? `list="dl-${ex.ladder}"` : ''} autocomplete="off"></div>
+    ${lvlH}
     <div class="sets">${rowsH}</div>${fin}${total}
     <div class="exfoot"><button class="addset" data-a="addset" data-ex="${ex.id}">+ Add set</button>${rows > 1 ? `<button class="addset rm" data-a="rmset" data-ex="${ex.id}">− Remove set</button>` : ''}
       ${ex.kind === 'free' ? '' : `<div class="rir"><span>Final RIR</span>${['0', '1', '2', '3', '4+'].map(v => `<button class="${e.rir === v ? 'on' : ''}" data-a="rir" data-ex="${ex.id}" data-v="${v}">${v}</button>`).join('')}</div>`}</div>
@@ -441,6 +450,7 @@ function renderRest(w, d, dt) {
   let h = `<div class="dayhead"><div class="dt">${fmtDate(dt)}</div><h1>${DAY_NAMES[d]}</h1><h2>${esc(R.title)}</h2>
     <div class="chips"><span class="chip acc">${esc(phaseOf(w).name)}</span><span class="chip">Rest day</span></div>
     <p class="intro">${esc(R.rule)}</p></div>`;
+  h += foodBar(keyOf(dt));
   h += bwRow(dt);
   h += checklist('Optional today', d === 2 ? 'grease the groove' : 'easy', R.items, s.rest || {}, 'rest', false);
   const Y = YOGA[d];
@@ -461,7 +471,7 @@ function renderCheckin(w) {
   const title = w === 1 ? 'Baseline check-in' : measureOnly ? 'Deload check-in' : `Week ${w} check-in`;
   const filled = TESTS.filter(t => c[t.k] != null && c[t.k] !== '').length;
   const fld = t => {
-    const ph = w === 1 && PREV_BASELINE[t.k] != null ? `last: ${PREV_BASELINE[t.k]}` : (t.u === 'text' ? 'e.g. tuck 15 s' : '');
+    const ph = w === 1 && PREV_BASELINE[t.k] != null ? `last: ${PREV_BASELINE[t.k]}` : (KNOWN_VALUES[w] && KNOWN_VALUES[w][t.k] != null ? `measured: ${KNOWN_VALUES[w][t.k]}` : (t.u === 'text' ? 'e.g. tuck 15 s' : ''));
     return `<div class="fld ${t.u === 'text' ? 'wide' : ''}"><label for="ck-${t.k}">${esc(t.t)}</label><div class="inrow"><input id="ck-${t.k}" class="num" ${t.u === 'text' ? '' : 'inputmode="decimal"'} data-f="ck" data-w="${w}" data-k="${t.k}" value="${esc(c[t.k] ?? '')}" placeholder="${esc(ph)}">${t.u !== 'text' ? `<span class="u">${t.u}</span>` : ''}</div></div>`;
   };
   const photos = measureOnly ? '' : `<div class="lbl" style="margin:16px 0 8px">Progress photos</div><div class="photos">${['front', 'side', 'back'].map(sl => {
@@ -519,6 +529,7 @@ function renderWeekly(w) {
       <div class="tile"><div class="v num">${delta != null ? (delta >= 0 ? '+' : '') + delta.toFixed(2) : '–'}</div><div class="k">vs last week</div></div>
     </div>
     ${advice ? `<div class="hint">${advice}</div>` : ''}
+    ${foodWeeklyHTML(w)}
     <div class="fgrid" style="margin-top:12px">
       <div class="fld"><label for="wk-sleep">Sleep avg (h)</label><input id="wk-sleep" inputmode="decimal" data-f="wk" data-w="${w}" data-k="sleep" value="${esc(r.sleep ?? '')}" placeholder="7–9"></div>
       <div class="fld"><label for="wk-protein">Protein avg (g/day)</label><input id="wk-protein" inputmode="decimal" data-f="wk" data-w="${w}" data-k="protein" value="${esc(r.protein ?? '')}" placeholder="${Math.round(prot * 1.6)}–${Math.round(prot * 2.2)}"></div>
@@ -556,7 +567,7 @@ function renderProgram() {
     <p>Skills first, while fresh, never to failure.</p>
     <p>Level up when every set hits the top of the range cleanly, then restart at the bottom. Reps first, then leverage, then load.</p>
     <p>Strength sets stop at 1–2 reps in reserve. Only the final set in the Skill + Strength block goes to 0–1.</p>
-    <p>Wrist prep and the left-hip circuit are non-negotiable on every training day.</p>
+    <p>Wrist prep and the shoulder / upper-back routine are non-negotiable on every training day — the routine is what unlocks the handstand. One hip move stays on Mondays as insurance.</p>
     <p>Eat maintenance + 250–500 kcal, 1.6–2.2 g/kg protein, sleep 7–9 h. Aim for 0.25–0.5 kg a week.</p>
     <p>Tendons adapt slower than muscle: no volume spikes, no grinding muscle-up attempts.</p>
     <p>Match both legs to the weaker left hip; keep the pelvis level.</p></div></details>`;
@@ -640,7 +651,7 @@ function renderProgress() {
   </div>
   <div class="blk"><div class="bh"><h3>Bodyweight</h3></div><div class="bb">${bwChart()}</div></div>
   <div class="blk"><div class="bh"><h3>Best set by week</h3></div><div class="bb">${liftRows()}<p class="small muted">A dot above a bar marks a level change — reps drop when you move to a harder variation, which is progress.</p></div></div>`;
-  h += mindProgress();
+  h += foodProgress();
   // benchmarks
   const cols = CHECKIN_WEEKS;
   h += `<div class="blk"><div class="bh"><h3>Benchmarks</h3></div><div class="bb"><div class="tblw"><table class="bm num"><thead><tr><th>Test</th>${cols.map(w => `<th>${w === 1 ? 'Base' : 'Wk ' + w}</th>`).join('')}</tr></thead><tbody>
@@ -668,6 +679,11 @@ function renderSettings() {
   <div class="blk"><div class="bh"><h3>Program dates</h3></div><div class="bb">
     <div class="fld"><label for="startdate">Start date (week 1, Monday)</label><input type="date" id="startdate" data-f="startdate" value="${S.settings.startDate}"></div>
     <p class="small muted">Runs ${fmtDate(sd, { day: 'numeric', month: 'short' })} – ${fmtDate(end, { day: 'numeric', month: 'short', year: 'numeric' })}. Any date you pick snaps to the Monday of that week. Your logs stay attached to their program week, so moving the start date doesn’t lose anything.</p>
+  </div></div>
+  <div class="blk"><div class="bh"><h3>Body</h3></div><div class="bb">
+    <div class="fgrid"><div class="fld"><label for="s-height">Height (cm)</label><input id="s-height" class="num" inputmode="numeric" data-f="sheight" value="${esc(S.settings.height || '')}" placeholder="172"></div>
+    <div class="fld"><label for="s-age">Age</label><input id="s-age" class="num" inputmode="numeric" data-f="sage" value="${esc(S.settings.age || '')}" placeholder="years"></div></div>
+    <p class="small muted">Only used for the provisional calorie target during the first two weeks of food logging.</p>
   </div></div>
   <div class="blk"><div class="bh"><h3>Pull-up branch</h3></div><div class="bb">
     <div class="seg">${['A', 'B', 'C'].map(b => `<button class="${S.settings.branch === b ? 'on' : ''}" data-a="setbranch" data-v="${b}">${b}</button>`).join('')}</div>
@@ -703,11 +719,11 @@ function tabsHTML() {
   const ic = {
     day: '<svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
     program: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>',
-    mind: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg>',
+    food: '<svg viewBox="0 0 24 24"><path d="M5 3v18M5 11c2 0 3-1 3-4V3M3 3v4c0 2 1 4 2 4M14 3c-1 3-1 6 0 9v9M14 12c3 0 4-3 4-6s-1-3-1-3"/></svg>',
     progress: '<svg viewBox="0 0 24 24"><path d="M4 19h16M6 15l4-4 3 3 5-6"/></svg>',
     settings: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>',
   };
-  const names = { day: 'Day', program: 'Program', mind: 'Mind', progress: 'Progress', settings: 'Settings' };
+  const names = { day: 'Day', program: 'Program', food: 'Food', progress: 'Progress', settings: 'Settings' };
   return `<div class="in">${Object.keys(names).map(k => `<button class="tab ${V.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}" aria-current="${V.tab === k}">${ic[k]}${names[k]}</button>`).join('')}</div>`;
 }
 function render() {
@@ -715,7 +731,7 @@ function render() {
   if (V.tab === 'day') h = renderDay();
   else if (V.tab === 'program') h = renderProgram();
   else if (V.tab === 'progress') h = renderProgress();
-  else if (V.tab === 'mind') h = renderMind();
+  else if (V.tab === 'food') h = renderFood();
   else h = renderSettings();
   const y = window.scrollY;
   m.innerHTML = h;
@@ -793,7 +809,7 @@ document.addEventListener('click', e => {
   }
   const w = V.w, d = V.d;
   switch (a) {
-    case 'tab': V.tab = v; if (v === 'day') { } window.scrollTo(0, 0); render(); break;
+    case 'tab': if (typeof stopScan === 'function') stopScan(); V.tab = v; window.scrollTo(0, 0); render(); break;
     case 'goto': V.w = +b.dataset.w; V.d = +b.dataset.d; V.tab = 'day'; V.showRed = false; window.scrollTo(0, 0); render(); break;
     case 'wprev': if (V.w > 1) { V.w--; V.showRed = false; render(); } break;
     case 'wnext': if (V.w < 16) { V.w++; V.showRed = false; render(); } break;
@@ -828,6 +844,7 @@ document.addEventListener('click', e => {
         if (num(st.r) == null) { if (tgt == null) { toast('Enter the ' + (ex.unit === 's' ? 'seconds' : 'reps') + ' first'); $('#r-' + ex.id + '-' + i)?.focus(); break; } st.r = String(tgt); }
         st.d = true;
         if (!e.lvl && pl.h && pl.h.lvl && !pl.levelUp) e.lvl = pl.h.lvl;
+        if (!e.load && pl.h && pl.h.load && !pl.levelUp) e.load = pl.h.load;
         const doneN = e.sets.filter(x => x && x.d).length;
         startRest(ex.rest, doneN >= setCount(e, pl) ? ex.name + ' done — next exercise' : ex.name + ' · set ' + (doneN + 1));
       }
@@ -851,7 +868,7 @@ document.addEventListener('click', e => {
     case 'tadd': if (T) { T.end += 15000; T.total += 15; drawTimer(); } break;
     case 'tclose': T = null; drawTimer(); break;
     case 'backup': doBackup(); break;
-    default: mindClick(a, b, v); break;
+    default: foodClick(a, b, v); break;
     case 'signin': signIn('in'); break;
     case 'signup': signIn('up'); break;
     case 'signout': signOut(); break;
@@ -863,16 +880,26 @@ document.addEventListener('input', e => {
   const w = V.w, d = V.d;
   if (f === 'rep') { const s = sess(w, d); const ex = s && exState(s, t.dataset.ex); const i = +t.dataset.i; while (ex.sets.length <= i) ex.sets.push({}); ex.sets[i].r = t.value.trim(); saveSess(w, d); }
   else if (f === 'lvl') { const s = sess(w, d); exState(s, t.dataset.ex).lvl = t.value; saveSess(w, d); }
+  else if (f === 'sheight') { S.settings.height = t.value.trim(); touch('meta/settings'); }
+  else if (f === 'sage') { S.settings.age = t.value.trim(); touch('meta/settings'); }
+  else if (f === 'load') { const s = sess(w, d); exState(s, t.dataset.ex).load = t.value; saveSess(w, d); }
   else if (f === 'note') { const s = sess(w, d); exState(s, t.dataset.ex).note = t.value; saveSess(w, d); }
   else if (f === 'snotes') { const s = sess(w, d); s.notes = t.value; saveSess(w, d); }
   else if (f === 'yogamin') { const s = sess(w, d); s.yogaMin = t.value.trim(); saveSess(w, d); }
   else if (f === 'bw') { S.bw.entries = S.bw.entries || {}; const v = t.value.trim(); if (v === '') delete S.bw.entries[t.dataset.k]; else S.bw.entries[t.dataset.k] = v; touch('meta/bw'); }
   else if (f === 'ck') { const c = ck(+t.dataset.w); c[t.dataset.k] = t.value.trim(); touch('checkins/' + ckid(+t.dataset.w)); const fl = $('#ck-flags'); if (fl) fl.innerHTML = flagsHTML(+t.dataset.w); }
   else if (f === 'wk') { const r = wkDoc(+t.dataset.w); r[t.dataset.k] = t.value; touch('weeks/' + ckid(+t.dataset.w)); }
-  else mindInput(f, t);
+  else foodInput(f, t);
 });
+document.addEventListener('keydown', e => { if (V.tab === 'food') foodKey(e); });
 document.addEventListener('change', e => {
   const t = e.target; const f = t.dataset.f; if (!f) return;
+  if (f === 'lvlsel') {
+    const s = sess(V.w, V.d); const e = exState(s, t.dataset.ex); V.other = V.other || {};
+    if (t.value === '__other') { V.other[t.dataset.ex] = true; e.lvl = ''; saveSess(V.w, V.d); rerenderCard(t.dataset.ex); setTimeout(() => $('#lvlo-' + t.dataset.ex)?.focus(), 30); }
+    else { V.other[t.dataset.ex] = false; e.lvl = t.value; saveSess(V.w, V.d); rerenderCard(t.dataset.ex); }
+    return;
+  }
   if (f === 'startdate') {
     if (!t.value) return;
     const m = mondayOf(parseKey(t.value)); S.settings.startDate = keyOf(m); touch('meta/settings'); goToday(); V.keepScroll = true; render();
@@ -944,13 +971,12 @@ async function doRestore(file) {
       const cur = S[c][id]; if (!cur || (doc._u || 0) > (cur._u || 0)) { S[c][id] = doc; touch(c + '/' + id); n++; }
     }));
     if (inS.bw && inS.bw.entries) { S.bw.entries = Object.assign({}, inS.bw.entries, S.bw.entries); touch('meta/bw'); }
-    if (inS.mindMeta && (!S.mindMeta || (inS.mindMeta._u || 0) > (S.mindMeta._u || 0))) { S.mindMeta = inS.mindMeta; touch('meta/mind'); }
+    if (inS.foodMeta && (!S.foodMeta || (inS.foodMeta._u || 0) > (S.foodMeta._u || 0))) { S.foodMeta = inS.foodMeta; touch('meta/food'); }
     persist(); render(); toast(`Restored ${n} entries`);
   } catch (e) { toast('That file isn’t a backup from this app'); }
 }
 
 /* ---------- BOOT ---------- */
-document.getElementById('datalists').innerHTML = Object.entries(LADDERS).map(([k, arr]) => `<datalist id="dl-${k}">${arr.map(x => `<option value="${esc(x)}">`).join('')}</datalist>`).join('');
 render();
 initSync();
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
