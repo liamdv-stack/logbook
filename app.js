@@ -178,7 +178,8 @@ function status(w, d) {
   if (k < t) return 'missed';
   return 'future';
 }
-const dayEx = d => (PROGRAM[d] ? PROGRAM[d].ex : []);
+const ROLE_ORDER = { skill: 0, main: 1, std: 2, acc: 3 };
+const dayEx = d => (PROGRAM[d] ? PROGRAM[d].ex.slice().sort((a, b) => (ROLE_ORDER[a.role] ?? 2) - (ROLE_ORDER[b.role] ?? 2)) : []);
 
 /* ---------- PROGRESSION ENGINE ---------- */
 function setCount(e, pl) { return e && e.n != null ? e.n : Math.max(pl.n, (e && e.sets ? e.sets.length : 0)); }
@@ -271,10 +272,20 @@ function header() {
 
 function bwRow(dt) {
   const k = keyOf(dt); const v = S.bw.entries?.[k] ?? '';
-  return `<div class="bwrow"><label for="bw-${k}">Morning weight<small>Weigh 3–4 mornings a week</small></label>
-    <input id="bw-${k}" class="num" inputmode="decimal" data-f="bw" data-k="${k}" value="${esc(v)}" placeholder="kg"><span class="muted small">kg</span></div>`;
+  const prev = Object.entries(S.bw.entries || {}).filter(([kk, x]) => kk < k && num(x) != null).sort((a, b) => b[0].localeCompare(a[0]))[0];
+  return `<div class="bwrow"><label for="bw-${k}">Morning weight<small>${prev ? 'Last: ' + esc(prev[1]) + ' kg' : 'Weigh 3–4 mornings a week'}</small></label>
+    <input id="bw-${k}" class="num" inputmode="decimal" data-f="bw" data-k="${k}" value="${esc(v)}" placeholder="${prev ? esc(prev[1]) : 'kg'}"><span class="muted small">kg</span></div>`;
 }
 
+function lightRow(s, light) {
+  const eff = light || 'green';
+  if (!V.showLight && !(light && light !== 'green')) return `<button class="ltrow" data-a="lightshow"><span class="dot ${eff}"></span><span>Feeling <b>${LIGHTS[eff].name}</b></span><span class="muted small">change</span></button>`;
+  return `<div class="blk"><div class="bh"><h3>How do you feel?</h3></div><div class="bb">
+    <div class="lights">${['green', 'amber', 'red'].map(k => `<button class="lt ${k} ${eff === k ? 'on' : ''}" data-a="light" data-v="${k}" aria-pressed="${eff === k}"><span class="dot"></span>${LIGHTS[k].name}</button>`).join('')}</div>
+    <div class="ltinfo"><b>${LIGHTS[eff].what}</b></div>
+    <div class="ltinfo small muted">Amber: ${LIGHTS.amber.when}. Red: ${LIGHTS.red.when}.</div>
+  </div></div>`;
+}
 function renderDay() {
   const w = V.w, d = V.d, dt = dateOf(w, d), ph = phaseOf(w);
   const p = posOf(new Date());
@@ -292,6 +303,7 @@ function renderDay() {
     <div class="chips"><span class="chip acc">${esc(ph.name)}</span><span class="chip">${esc(ph.rir)}</span>${stChip}</div>
     <p class="intro">${esc(P.intro)}</p>
   </div>`;
+  if (d === 4 && (CHECKIN_WEEKS.includes(w + 1) || w + 1 === 9) && w < 16) h += `<div class="banner info"><b>Monday is a check-in.</b> Measure and test before training — rested, after the warm-up.</div>`;
   if (w === 9) h += `<div class="banner warn"><b>Deload week.</b> About half the sets, same exercises, moderate effort. One easy week costs no muscle.</div>`;
   if (w >= 10 && w <= 13) h += `<div class="banner info"><b>Skill + Strength block.</b> Take the final set of each strength exercise to 0–1 in reserve.</div>`;
 
@@ -300,11 +312,8 @@ function renderDay() {
   if (d === 0 && (CHECKIN_WEEKS.includes(w) || w === 9)) h += renderCheckin(w);
 
   // traffic light
-  h += `<div class="blk"><div class="bh"><h3>How do you feel?</h3><span class="lbl">Traffic light</span></div><div class="bb">
-    <div class="lights">${['green', 'amber', 'red'].map(k => `<button class="lt ${k} ${light === k ? 'on' : ''}" data-a="light" data-v="${k}" aria-pressed="${light === k}"><span class="dot"></span>${LIGHTS[k].name}</button>`).join('')}</div>
-    <div class="ltinfo">${light ? `<b>${LIGHTS[light].what}</b>` : 'Tap the one that fits before you start.'}</div>
-    ${light ? '' : `<div class="ltinfo small muted">Green: ${LIGHTS.green.when}. Amber: ${LIGHTS.amber.when}. Red: ${LIGHTS.red.when}.</div>`}
-  </div></div>`;
+  h += lightRow(s, light);
+  if (!s.status) h += `<button class="big start" data-a="wmstart">${anyLogged(s) || Object.keys(s.wu || {}).length ? 'Continue workout' : 'Start workout'}</button>`;
 
   // warm-up
   const warm = P.warm.filter(x => !x.minWeek || w >= x.minWeek);
@@ -316,7 +325,7 @@ function renderDay() {
       <div class="banner bad"><b>Recovery day.</b> Skip the planned session. Do the shoulder routine and gentle mobility instead, and regress whatever hurts next time. If the pain is sharp or keeps coming back, get it assessed.
       <button class="big ghost" data-a="showred">Show the workout anyway</button></div>`;
   } else {
-    const exs = P.ex;
+    const exs = dayEx(d);
     const doneSets = exs.reduce((a, ex) => a + ((s.ex?.[ex.id]?.sets || []).filter(x => x && x.d).length), 0);
     h += `<div class="sec"><h3>Workout</h3><span class="cnt num">${doneSets} sets logged</span></div>`;
     exs.forEach(ex => { h += exCard(ex, w, d, s, light); });
@@ -326,13 +335,12 @@ function renderDay() {
 
   // finish
   if (s.status === 'done') {
-    h += `<div class="blk"><div class="bb" style="padding-top:16px"><div class="done-card"><div class="ok">✓</div><div><b>Session done</b><div class="small muted">${s.rpe ? 'Effort ' + esc(s.rpe) + '/10' : ''}${s.hip ? ' · Left hip: ' + esc(s.hip) : ''}</div></div></div>
+    h += `<div class="blk"><div class="bb" style="padding-top:16px"><div class="done-card"><div class="ok">✓</div><div><b>Session done</b><div class="small muted">${s.rpe ? 'Effort ' + esc(s.rpe) + '/10' : ''}</div></div></div>
       ${s.notes ? `<p class="small">${esc(s.notes)}</p>` : ''}
       <button class="big ghost" data-a="reopen">Edit session</button></div></div>`;
   } else {
     h += `<div class="blk"><div class="bh"><h3>Finish</h3></div><div class="bb">
       <div class="fld"><label>How hard was the session? (1–10)</label><div class="seg">${[5, 6, 7, 8, 9, 10].map(v => `<button class="${String(s.rpe) === String(v) ? 'on' : ''}" data-a="rpe" data-v="${v}">${v}</button>`).join('')}</div></div>
-      <div class="fld" style="margin-top:12px"><label>Left hip</label><div class="seg">${['OK', 'Niggle', 'Sore'].map(v => `<button class="${s.hip === v ? 'on' : ''}" data-a="hip" data-v="${v}">${v}</button>`).join('')}</div></div>
       <div class="fld" style="margin-top:12px"><label for="snotes">Notes</label><textarea id="snotes" data-f="snotes" placeholder="Anything worth remembering">${esc(s.notes || '')}</textarea></div>
       <button class="big" data-a="finish">Finish session</button>
     </div></div>`;
@@ -384,12 +392,26 @@ const ITEM_Q = {
   '1 easy pike hold': 'pike hold', 'Lat stretch': 'lat stretch', 'Front-of-shoulder stretch': 'front shoulder stretch',
 };
 
-function checklist(title, time, items, state, key, open) {
-  const n = items.filter((_, i) => state[i]).length;
-  return `<details class="blk" ${open ? 'open' : ''}><summary><h3>${title}</h3><span class="cnt num ${n === items.length ? 'full' : ''}">${n}/${items.length}</span><span class="lbl">${esc(time)}</span><span class="chev">›</span></summary>
-    <div class="bb">${items.map((it, i) => {
-      const q = it.q || (NO_DEMO.test(it.t) ? '' : (ITEM_Q[it.t] || it.t));
-      return `<div class="chkrow"><button class="chk ${state[i] ? 'on' : ''}" data-a="${key}" data-i="${i}" aria-pressed="${!!state[i]}"><span class="box">✓</span><span><span class="ct">${esc(it.t)}</span>${it.d ? `<span class="cd">${esc(it.d)}</span>` : ''}</span></button>${q ? `<a class="mini" href="${ytUrl(q)}" target="_blank" rel="noopener" aria-label="Search how to do ${esc(it.t)}">↗</a>` : ''}</div>`;
+function blocksOf(items, oneBlock) {
+  const out = [];
+  items.forEach((it, i) => {
+    const name = oneBlock ? oneBlock : (it.b || it.t);
+    let b = out[out.length - 1]; if (!b || b.name !== name) { b = { name, items: [], key: name.toLowerCase().replace(/[^a-z0-9]+/g, '-') }; out.push(b); }
+    b.items.push(Object.assign({ i }, it));
+  });
+  return out;
+}
+function checklist(title, time, items, state, key, open, oneBlock) {
+  const blocks = blocksOf(items, oneBlock);
+  const n = blocks.filter(b => state[b.key]).length;
+  return `<details class="blk" ${open ? 'open' : ''}><summary><h3>${title}</h3><span class="cnt num ${n === blocks.length ? 'full' : ''}">${n}/${blocks.length}</span><span class="lbl">${esc(time)}</span><span class="chev">›</span></summary>
+    <div class="bb">${blocks.map(b => {
+      const single = b.items.length === 1 && !oneBlock;
+      const lines = b.items.map(it => {
+        const q = it.q || (NO_DEMO.test(it.t) ? '' : (ITEM_Q[it.t] || it.t));
+        return `<div class="bi">${single ? '' : `<span class="bi-t">${esc(it.t)}</span>`}${it.d ? `<span class="bi-d">${esc(it.d)}</span>` : ''}${q ? `<a class="mini" href="${ytUrl(q)}" target="_blank" rel="noopener" aria-label="Search how to do ${esc(it.t)}">↗</a>` : ''}</div>`;
+      }).join('');
+      return `<div class="blockrow ${state[b.key] ? 'on' : ''}"><button class="chk" data-a="${key}" data-k="${b.key}" aria-pressed="${!!state[b.key]}"><span class="box">✓</span><span class="ct">${esc(b.name)}</span></button><div class="bi-list">${lines}</div></div>`;
     }).join('')}</div></details>`;
 }
 
@@ -415,14 +437,19 @@ function exCard(ex, w, d, s, light) {
   const last = hi ? `<div class="last">Last time (Wk ${hi.week} ${DAY_NAMES[hi.day].slice(0, 3)}): <b class="num">${hi.reps.join(' · ')}</b>${hi.label ? ' @ ' + esc(hi.label) : ''}</div>` : '';
   const opts = lvlOptions(ex); const cur = e.lvl || ''; const custom = !!cur && !opts.includes(cur); const other = custom || !!(V.other && V.other[ex.id]);
   const lvlPh = cur ? '' : (hi && hi.lvl && !pl.levelUp ? 'Last: ' + hi.lvl : (ex.ladder ? 'Choose level' : 'Choose weight'));
-  const lvlH = `<div class="lvl"><label for="lvl-${ex.id}">${ex.ladder ? 'Level' : 'Weight'}</label>
+  const carried = !cur && hi && hi.lvl && !pl.levelUp;
+  const lvlEdit = !!(V.editLvl && V.editLvl[ex.id]) || (!cur && !carried) || other;
+  const lvlShown = cur || (carried ? hi.lvl : '');
+  const lvlLine = `<button class="lvlline" data-a="lvledit" data-ex="${ex.id}"><span>${esc([lvlShown, e.load || (carried ? hi.load : '')].filter(Boolean).join(' · ') || 'Set level')}</span><span class="muted small">change</span></button>`;
+  const lvlH = lvlEdit ? `<div class="lvl"><label for="lvl-${ex.id}">${ex.ladder ? 'Level' : 'Weight'}</label>
       <select id="lvl-${ex.id}" data-f="lvlsel" data-ex="${ex.id}"><option value="">${esc(lvlPh)}</option>${opts.map(o => `<option value="${esc(o)}" ${o === cur ? 'selected' : ''}>${esc(o)}</option>`).join('')}<option value="__other" ${other ? 'selected' : ''}>Other…</option></select></div>
     ${other ? `<div class="lvl"><label for="lvlo-${ex.id}">Other</label><input id="lvlo-${ex.id}" data-f="lvl" data-ex="${ex.id}" value="${esc(custom ? cur : '')}" placeholder="Type the variation" autocomplete="off"></div>` : ''}
-    ${ex.ladder ? `<div class="lvl"><label for="load-${ex.id}">Load</label><input id="load-${ex.id}" data-f="load" data-ex="${ex.id}" value="${esc(e.load || '')}" placeholder="${hi && hi.load && !pl.levelUp ? 'Last: ' + esc(hi.load) : 'e.g. +5 kg, green band, box 45 cm'}" autocomplete="off"></div>` : ''}`;
+    ${ex.ladder ? `<div class="lvl"><label for="load-${ex.id}">Load</label><input id="load-${ex.id}" data-f="load" data-ex="${ex.id}" value="${esc(e.load || '')}" placeholder="${hi && hi.load && !pl.levelUp ? 'Last: ' + esc(hi.load) : 'e.g. +5 kg, green band, box 45 cm'}" autocomplete="off"></div>` : ''}` : lvlLine;
   const branch = ex.branch ? `<p><b>Your branch ${esc(S.settings.branch)}:</b> ${esc(BRANCHES[S.settings.branch].plan)} ${esc(BRANCHES[S.settings.branch].next)}</p>` : '';
   const total = ex.track === 'lsit' ? `<div class="total num">Total today: <b>${(e.sets || []).filter(x => x && x.d).reduce((a, x) => a + (num(x.r) || 0), 0)} s</b> of ~60 s</div>` : '';
   const fin = (w >= 10 && w <= 13 && ex.kind !== 'free') ? `<div class="fin">Final set: 0–1 in reserve</div>` : '';
-  let hint = pl.msg;
+  const quiet = !pl.levelUp && w !== 9 && w !== 16 && light !== 'amber' && !(pl.h == null && w <= 2) && ex.kind !== 'free';
+  let hint = quiet ? '' : pl.msg;
   let hcls = pl.cls;
   if (skip) { hint = '<b>Amber day: skip this one.</b> ' ; hcls = 'warn'; }
   else if (light === 'amber' && ex.role === 'skill') { hint = '<b>Amber day:</b> skills at ~60% effort. ' + hint; hcls = 'warn'; }
@@ -436,7 +463,7 @@ function exCard(ex, w, d, s, light) {
     ${lvlH}
     <div class="sets">${rowsH}</div>${fin}${total}
     <div class="exfoot"><button class="addset" data-a="addset" data-ex="${ex.id}">+ Add set</button>${rows > 1 ? `<button class="addset rm" data-a="rmset" data-ex="${ex.id}">− Remove set</button>` : ''}
-      ${ex.kind === 'free' ? '' : `<div class="rir"><span>Final RIR</span>${['0', '1', '2', '3', '4+'].map(v => `<button class="${e.rir === v ? 'on' : ''}" data-a="rir" data-ex="${ex.id}" data-v="${v}">${v}</button>`).join('')}</div>`}</div>
+</div>
     <details class="exmore"><summary>Cue, progression and notes</summary>
       <div class="links"><a data-a="demo" data-ex="${ex.id}" data-kind="yt" href="${ytUrl(demoQuery(ex, exLevel(ex, w, d)))}" target="_blank" rel="noopener">Google ↗</a><a data-a="demo" data-ex="${ex.id}" data-kind="img" href="${imgUrl(demoQuery(ex, exLevel(ex, w, d)))}" target="_blank" rel="noopener">Pictures</a>${GUIDES[ex.track] ? `<a href="${GUIDES[ex.track].url}" target="_blank" rel="noopener" title="${esc(GUIDES[ex.track].name)}">Guide ↗</a>` : ''}</div>
       <p><b>Cue:</b> ${esc(ex.cue)}</p><p><b>Progression:</b> ${esc(ex.prog)}</p>${branch}<p class="muted">${esc(ex.note)}</p>
@@ -456,7 +483,7 @@ function renderRest(w, d, dt) {
   const Y = YOGA[d];
   if (Y) {
     h += `<div class="sec"><h3>Yoga</h3></div>`;
-    h += checklist(Y.name, Y.time, Y.items, s.yoga || {}, 'yoga', true).replace('<details class="blk"', '<details class="blk yoga"');
+    h += checklist(Y.name, Y.time, Y.items, s.yoga || {}, 'yoga', true, 'Flow done').replace('<details class="blk"', '<details class="blk yoga"');
     h += `<div class="bwrow"><label for="yogamin">Yoga time done<small>Minutes, roughly</small></label><input id="yogamin" class="num" inputmode="numeric" data-f="yogamin" value="${esc(s.yogaMin ?? '')}" placeholder="min"><span class="muted small">min</span></div>`;
     h += `<p class="small muted">Easy stretching only — breathe and ease in, never into pain. If the left hip complains, swap lizard or figure-four for a gentle supine twist.</p>`;
   }
@@ -520,7 +547,6 @@ function renderWeekly(w) {
     else if (delta <= 0) { const p2 = w > 2 && bwAvg(w - 2) != null ? prev - bwAvg(w - 2) : null; advice = p2 != null && p2 <= 0 ? 'No gain two weeks running — add 100–200 kcal a day.' : 'No gain this week. If next week is flat too, add 100–200 kcal a day.'; }
     else advice = 'On track: 0.25–0.5 kg a week is the target.';
   }
-  const prot = avg || S.checkins.w01?.bw || 56.6;
   const seg = (k, vals) => `<div class="seg">${vals.map(v => `<button class="${String(r[k]) === String(v) ? 'on' : ''}" data-a="wk" data-k="${k}" data-v="${v}">${v}</button>`).join('')}</div>`;
   return `<div class="blk"><div class="bh"><h3>Week ${w} review</h3></div><div class="bb">
     <div class="tiles" style="margin-top:0">
@@ -531,11 +557,9 @@ function renderWeekly(w) {
     ${advice ? `<div class="hint">${advice}</div>` : ''}
     ${foodWeeklyHTML(w)}
     <div class="fgrid" style="margin-top:12px">
-      <div class="fld"><label for="wk-sleep">Sleep avg (h)</label><input id="wk-sleep" inputmode="decimal" data-f="wk" data-w="${w}" data-k="sleep" value="${esc(r.sleep ?? '')}" placeholder="7–9"></div>
-      <div class="fld"><label for="wk-protein">Protein avg (g/day)</label><input id="wk-protein" inputmode="decimal" data-f="wk" data-w="${w}" data-k="protein" value="${esc(r.protein ?? '')}" placeholder="${Math.round(prot * 1.6)}–${Math.round(prot * 2.2)}"></div>
+      <div class="fld wide"><label for="wk-sleep">Sleep avg (h)</label><input id="wk-sleep" inputmode="decimal" data-f="wk" data-w="${w}" data-k="sleep" value="${esc(r.sleep ?? '')}" placeholder="7–9"></div>
       <div class="fld wide"><label>Energy (1–5)</label>${seg('energy', [1, 2, 3, 4, 5])}</div>
       <div class="fld wide"><label>Joint pain (0–10)</label>${seg('pain', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])}</div>
-      <div class="fld wide"><label>Left hip OK?</label>${seg('hip', ['Yes', 'Niggle', 'No'])}</div>
       <div class="fld wide"><label for="wk-notes">Notes</label><textarea id="wk-notes" data-f="wk" data-w="${w}" data-k="notes">${esc(r.notes || '')}</textarea></div>
     </div>
     <p class="small muted">Joint pain climbing across weeks means deload now, not in week 9.</p>
@@ -643,20 +667,22 @@ function renderProgress() {
   for (let w = 1; w <= upTo; w++) TRAIN.forEach(d => { const k = keyOf(dateOf(w, d)); if (k <= todayKey()) { due++; if (status(w, d) === 'done') done++; } });
   const pts = bwPoints();
   const bwNow = pts.length ? pts[pts.length - 1].v : null, bwStart = pts.length ? pts[0].v : null;
-  let h = `<div class="dayhead"><div class="dt">Week ${Math.max(1, Math.min(16, p.w))} · ${esc(phaseOf(Math.max(1, Math.min(16, p.w))).name)}</div><h1>Progress</h1></div>
-  <div class="tiles">
-    <div class="tile"><div class="v num">${done}/${due}</div><div class="k">Sessions done</div><div class="s">so far</div></div>
+  let h = `<div class="dayhead"><div class="dt">Week ${Math.max(1, Math.min(16, p.w))} · ${esc(phaseOf(Math.max(1, Math.min(16, p.w))).name)}</div><h1>Progress</h1></div>`;
+  const latest = k => { for (const w of CHECKIN_WEEKS.concat([9]).sort((a, b) => b - a)) { const c = S.checkins[ckid(w)]; if (c && c[k] != null && c[k] !== '') return { v: c[k], w }; } return null; };
+  const gap = latest('wallgap'), hs = latest('hs');
+  h += `<div class="tiles">
     <div class="tile"><div class="v num">${bwNow != null ? bwNow.toFixed(1) : '–'}</div><div class="k">Latest kg</div><div class="s num">${bwNow != null && pts.length > 1 ? ((bwNow - bwStart >= 0 ? '+' : '') + (bwNow - bwStart).toFixed(1) + ' since start') : ''}</div></div>
-    <div class="tile"><div class="v num">${Object.values(S.checkins).filter(c => c && c._u).length}</div><div class="k">Check-ins</div><div class="s">of 5</div></div>
+    <div class="tile"><div class="v num">${gap ? esc(gap.v) : '–'}</div><div class="k">Wall gap cm</div><div class="s">${gap ? 'week ' + gap.w : 'not measured'}</div></div>
+    <div class="tile"><div class="v num">${hs ? esc(hs.v) : '–'}</div><div class="k">Wall handstand s</div><div class="s">${hs ? 'week ' + hs.w : done + '/' + due + ' sessions'}</div></div>
   </div>
   <div class="blk"><div class="bh"><h3>Bodyweight</h3></div><div class="bb">${bwChart()}</div></div>
-  <div class="blk"><div class="bh"><h3>Best set by week</h3></div><div class="bb">${liftRows()}<p class="small muted">A dot above a bar marks a level change — reps drop when you move to a harder variation, which is progress.</p></div></div>`;
-  h += foodProgress();
+  <details class="blk"><summary><h3>Best set by week</h3><span class="chev">›</span></summary><div class="bb">${liftRows()}<p class="small muted">A dot above a bar marks a level change — reps drop when you move to a harder variation, which is progress.</p></div></details>`;
+  h += foodProgress().replace('<div class="blk"><div class="bh"><h3>Food</h3></div>', '<details class="blk"><summary><h3>Food</h3><span class="chev">›</span></summary>').replace(/<\/div><\/div>$/, '</div></details>');
   // benchmarks
   const cols = CHECKIN_WEEKS;
-  h += `<div class="blk"><div class="bh"><h3>Benchmarks</h3></div><div class="bb"><div class="tblw"><table class="bm num"><thead><tr><th>Test</th>${cols.map(w => `<th>${w === 1 ? 'Base' : 'Wk ' + w}</th>`).join('')}</tr></thead><tbody>
+  h += `<details class="blk"><summary><h3>Benchmarks</h3><span class="chev">›</span></summary><div class="bb"><div class="tblw"><table class="bm num"><thead><tr><th>Test</th>${cols.map(w => `<th>${w === 1 ? 'Base' : 'Wk ' + w}</th>`).join('')}</tr></thead><tbody>
     ${TESTS.map(t => `<tr><td>${esc(t.t)}${t.u !== 'text' ? ` <span class="muted">(${t.u})</span>` : ''}</td>${cols.map(w => { const c = S.checkins[ckid(w)]; return `<td>${c && c[t.k] != null && c[t.k] !== '' ? esc(c[t.k]) : '<span class="muted">–</span>'}</td>`; }).join('')}</tr>`).join('')}
-  </tbody></table></div><p class="small muted">Tap a ◆ Monday in the program to fill in a check-in.</p></div></div>`;
+  </tbody></table></div><p class="small muted">Tap a ◆ Monday in the program to fill in a check-in.</p></div></details>`;
   // photos
   const withPh = cols.filter(w => { const c = S.checkins[ckid(w)]; return c && c.photos && Object.values(c.photos).some(Boolean); });
   if (withPh.length) {
@@ -714,6 +740,67 @@ function renderSettings() {
   </div></div>`;
 }
 
+
+/* ---------- WORKOUT MODE: one thing on screen at a time. Order: skills fresh → main lift → strength → accessories ---------- */
+const WM_KEY = 'cal16-wm';
+let WM = null; try { WM = JSON.parse(localStorage.getItem(WM_KEY) || 'null'); } catch (e) { WM = null; }
+function saveWM() { try { WM ? localStorage.setItem(WM_KEY, JSON.stringify(WM)) : localStorage.removeItem(WM_KEY); } catch (e) { } }
+function wmSteps(d) { return ['warm'].concat(dayEx(d).map(x => x.id), ['cool', 'finish']); }
+function wmStart(w, d) {
+  const s = peekSess(w, d) || {}; const steps = wmSteps(d); let i = 0;
+  // resume at the first unfinished step
+  for (let k = 0; k < steps.length - 1; k++) { if (!wmStepDone(steps[k], w, d, s)) { i = k; break; } i = k + 1; }
+  WM = { w, d, i: Math.min(i, steps.length - 1) }; V.w = w; V.d = d; V.tab = 'day'; saveWM(); ensureAudio(); keepAwake(); window.scrollTo(0, 0); render();
+}
+function wmExit() { WM = null; saveWM(); window.scrollTo(0, 0); render(); }
+function wmGo(delta) { const steps = wmSteps(WM.d); WM.i = Math.max(0, Math.min(steps.length - 1, WM.i + delta)); saveWM(); window.scrollTo(0, 0); render(); }
+function blocksDone(items, state) { const bl = blocksOf(items); return bl.length > 0 && bl.every(b => state && state[b.key]); }
+function wmStepDone(step, w, d, s) {
+  const P = PROGRAM[d]; const light = s.light || '';
+  if (step === 'warm') return blocksDone(P.warm.filter(x => !x.minWeek || w >= x.minWeek), s.wu);
+  if (step === 'cool') return blocksDone(P.cool, s.cd);
+  if (step === 'finish') return s.status === 'done';
+  const ex = dayEx(d).find(x => x.id === step); if (!ex) return true;
+  if (light === 'amber' && ex.role === 'acc') return true;
+  const e = s.ex?.[ex.id]; if (!e) return false; const pl = plan(ex, w, d, light);
+  return (e.sets || []).filter(x => x && x.d).length >= setCount(e, pl);
+}
+function renderWorkout() {
+  const { w, d } = WM; const P = PROGRAM[d]; if (!P) { WM = null; saveWM(); return renderDay(); }
+  const s = peekSess(w, d) || {}; const light = s.light || '';
+  const steps = wmSteps(d); const i = Math.min(WM.i, steps.length - 1); const step = steps[i]; const exs = dayEx(d);
+  const roleName = { skill: 'Skill — fresh, never to failure', main: 'Main lift', std: 'Strength', acc: 'Accessory' };
+  let h = `<div class="wm-top"><button class="pill" data-a="wmexit">Exit</button><div class="prog">${steps.map((st, idx) => `<i class="${idx === i ? 'cur' : wmStepDone(st, w, d, s) ? 'done' : ''}"></i>`).join('')}</div><span class="cnt num">${i + 1}/${steps.length}</span></div><div class="wm">`;
+  const nav = (label, go) => `<div class="wm-nav"><button class="big ghost" data-a="wmprev" ${i === 0 ? 'disabled' : ''}>Back</button><button class="big ${go ? 'go' : ''}" data-a="wmnext">${label}</button></div>`;
+  if (step === 'warm') {
+    const warm = P.warm.filter(x => !x.minWeek || w >= x.minWeek);
+    h += `<div class="wm-step">${DAY_NAMES[d]} · ${esc(P.title)}</div>${lightRow(s, light)}${checklist('Warm-up', P.warmTime, warm, s.wu || {}, 'wu', true)}
+      <div class="wm-up">Up next: <b>${esc(exs[0].name)}</b></div>${nav('Start: ' + exs[0].name.split(' ').slice(0, 3).join(' '), wmStepDone('warm', w, d, s))}`;
+  } else if (step === 'cool') {
+    h += `<div class="wm-step">Cool-down · ${esc(P.coolTime)}</div>${checklist('Cool-down', P.coolTime, P.cool, s.cd || {}, 'cd', true)}${nav('Finish session', wmStepDone('cool', w, d, s))}`;
+  } else if (step === 'finish') {
+    const sets = exs.reduce((a, ex) => a + ((s.ex?.[ex.id]?.sets || []).filter(x => x && x.d).length), 0);
+    if (s.status === 'done') {
+      h += `<div class="wm-step">Done</div><div class="blk"><div class="bb" style="padding-top:16px"><div class="done-card"><div class="ok">✓</div><div><b>Session saved</b><div class="small muted num">${sets} sets${s.rpe ? ' · effort ' + esc(s.rpe) + '/10' : ''}</div></div></div></div></div>
+        <button class="big" data-a="wmexit">Back to today</button>`;
+    } else {
+      h += `<div class="wm-step">Finish · ${sets} sets logged</div><div class="blk"><div class="bh"><h3>How hard was it?</h3></div><div class="bb">
+        <div class="seg">${[5, 6, 7, 8, 9, 10].map(v => `<button class="${String(s.rpe) === String(v) ? 'on' : ''}" data-a="rpe" data-v="${v}">${v}</button>`).join('')}</div>
+        <div class="fld" style="margin-top:12px"><label for="snotes">Notes</label><textarea id="snotes" data-f="snotes" placeholder="Anything worth remembering">${esc(s.notes || '')}</textarea></div>
+        <button class="big" data-a="finish">Finish session</button></div></div>
+        <div class="wm-nav"><button class="big ghost" data-a="wmprev">Back</button><span></span></div>`;
+    }
+  } else {
+    const idx = exs.findIndex(x => x.id === step); const ex = exs[idx]; const next = exs[idx + 1];
+    const skip = light === 'amber' && ex.role === 'acc';
+    h += `<div class="wm-step">${idx + 1} of ${exs.length} · ${roleName[ex.role] || ''}</div>${exCard(ex, w, d, s, light)}
+      <div class="wm-cue"><b>Cue:</b> ${esc(ex.cue)}</div>
+      <div class="wm-up">Up next: <b>${next ? esc(next.name) : 'Cool-down'}</b></div>
+      ${nav(skip ? 'Skip (amber)' : next ? 'Next exercise' : 'Cool-down', wmStepDone(step, w, d, s))}`;
+  }
+  return h + `</div>`;
+}
+
 /* ---------- MAIN RENDER ---------- */
 function tabsHTML() {
   const ic = {
@@ -728,14 +815,16 @@ function tabsHTML() {
 }
 function render() {
   const m = $('#main'); let h = '';
-  if (V.tab === 'day') h = renderDay();
+  if (WM && S.sessions[sid(WM.w, WM.d)]?.status === 'done' && WM.i < wmSteps(WM.d).length - 1) { WM = null; saveWM(); }
+  if (WM) h = renderWorkout();
+  else if (V.tab === 'day') h = renderDay();
   else if (V.tab === 'program') h = renderProgram();
   else if (V.tab === 'progress') h = renderProgress();
   else if (V.tab === 'food') h = renderFood();
   else h = renderSettings();
   const y = window.scrollY;
   m.innerHTML = h;
-  $('#tabs').innerHTML = tabsHTML();
+  $('#tabs').innerHTML = tabsHTML(); $('#tabs').hidden = !!WM;
   if (V.keepScroll) window.scrollTo(0, y);
   V.keepScroll = false;
   setSync();
@@ -743,12 +832,12 @@ function render() {
   hydratePhotos();
 }
 function rerenderCard(exId) {
-  const ex = PROGRAM[V.d]?.ex.find(x => x.id === exId); if (!ex) return;
+  const ex = exDef(exId); if (!ex) return;
   const el = $('#ex-' + exId); if (!el) return;
   const s = peekSess(V.w, V.d) || {};
   const tmp = document.createElement('div'); tmp.innerHTML = exCard(ex, V.w, V.d, s, s.light || '');
   el.replaceWith(tmp.firstElementChild);
-  const c = $('.sec .cnt'); if (c) { const n = PROGRAM[V.d].ex.reduce((a, x) => a + ((s.ex?.[x.id]?.sets || []).filter(q => q && q.d).length), 0); c.textContent = n + ' sets logged'; }
+  const c = $('.sec .cnt'); if (c) { const n = dayEx(V.d).reduce((a, x) => a + ((s.ex?.[x.id]?.sets || []).filter(q => q && q.d).length), 0); c.textContent = n + ' sets logged'; }
   refreshStrip();
 }
 function refreshStrip() { const hs = $('.strip'); if (hs) { const t = document.createElement('div'); t.innerHTML = header(); hs.replaceWith(t.querySelector('.strip')); } }
@@ -799,7 +888,7 @@ let toastT = null;
 function toast(msg) { const el = $('#toast'); el.textContent = msg; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, 2600); }
 
 /* ---------- EVENTS ---------- */
-function exDef(id) { return PROGRAM[V.d]?.ex.find(x => x.id === id); }
+function exDef(id) { return dayEx(V.d).find(x => x.id === id); }
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-a]'); if (!b) return;
   const a = b.dataset.a, v = b.dataset.v;
@@ -814,14 +903,20 @@ document.addEventListener('click', e => {
     case 'wprev': if (V.w > 1) { V.w--; V.showRed = false; render(); } break;
     case 'wnext': if (V.w < 16) { V.w++; V.showRed = false; render(); } break;
     case 'today': goToday(); V.showRed = false; window.scrollTo(0, 0); render(); break;
-    case 'light': { const s = sess(w, d); s.light = s.light === v ? '' : v; saveSess(w, d); ensureAudio(); keepAwake(); V.keepScroll = true; render(); break; }
+    case 'light': { const s = sess(w, d); s.light = v === 'green' ? '' : v; V.showLight = false; saveSess(w, d); ensureAudio(); keepAwake(); V.keepScroll = true; render(); break; }
+    case 'wmstart': wmStart(w, d); break;
+    case 'wmexit': wmExit(); break;
+    case 'wmprev': wmGo(-1); break;
+    case 'wmnext': wmGo(1); break;
+    case 'lightshow': V.showLight = true; V.keepScroll = true; render(); break;
     case 'showred': V.showRed = true; V.keepScroll = true; render(); break;
     case 'wu': case 'cd': case 'rest': case 'yoga': {
-      const s = sess(w, d); s[a] = s[a] || {}; const i = b.dataset.i; s[a][i] = !s[a][i]; saveSess(w, d);
-      b.classList.toggle('on', s[a][i]); b.setAttribute('aria-pressed', s[a][i]);
+      const s = sess(w, d); s[a] = s[a] || {}; const i = b.dataset.k; s[a][i] = !s[a][i]; saveSess(w, d);
+      b.closest('.blockrow').classList.toggle('on', s[a][i]); b.setAttribute('aria-pressed', s[a][i]);
       const det = b.closest('details'); const cnt = det && det.querySelector('.cnt');
-      if (cnt) { const tot = det.querySelectorAll('.chk').length, n = det.querySelectorAll('.chk.on').length; cnt.textContent = n + '/' + tot; cnt.classList.toggle('full', n === tot); }
+      if (cnt) { const tot = det.querySelectorAll('.blockrow').length, n = det.querySelectorAll('.blockrow.on').length; cnt.textContent = n + '/' + tot; cnt.classList.toggle('full', n === tot); }
       if (a === 'yoga') refreshStrip();
+      if (WM) { V.keepScroll = true; render(); }
       break;
     }
     case 'tick': case 'inc': case 'dec': {
@@ -848,8 +943,9 @@ document.addEventListener('click', e => {
         const doneN = e.sets.filter(x => x && x.d).length;
         startRest(ex.rest, doneN >= setCount(e, pl) ? ex.name + ' done — next exercise' : ex.name + ' · set ' + (doneN + 1));
       }
-      saveSess(w, d); rerenderCard(ex.id); break;
+      saveSess(w, d); if (WM) { V.keepScroll = true; render(); } else rerenderCard(ex.id); break;
     }
+    case 'lvledit': { V.editLvl = V.editLvl || {}; V.editLvl[b.dataset.ex] = true; rerenderCard(b.dataset.ex); setTimeout(() => $('#lvl-' + b.dataset.ex)?.focus(), 30); break; }
     case 'addset': case 'rmset': {
       const ex = exDef(b.dataset.ex); const s = sess(w, d); const e = exState(s, ex.id); const pl = plan(ex, w, d, s.light || '');
       const n = setCount(e, pl);
@@ -860,7 +956,7 @@ document.addEventListener('click', e => {
     case 'rir': { const s = sess(w, d); const e = exState(s, b.dataset.ex); e.rir = e.rir === v ? '' : v; saveSess(w, d); rerenderCard(b.dataset.ex); break; }
     case 'rpe': { const s = sess(w, d); s.rpe = s.rpe === v ? '' : v; saveSess(w, d); b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.v === s.rpe)); break; }
     case 'hip': { const s = sess(w, d); s.hip = s.hip === v ? '' : v; saveSess(w, d); b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.v === s.hip)); break; }
-    case 'finish': { const s = sess(w, d); s.status = 'done'; s.finishedOn = todayKey(); saveSess(w, d); T = null; drawTimer(); toast('Session saved. Nice work.'); V.keepScroll = true; render(); break; }
+    case 'finish': { const s = sess(w, d); s.status = 'done'; s.finishedOn = todayKey(); saveSess(w, d); T = null; drawTimer(); toast('Session saved. Nice work.'); if (WM) { WM.i = wmSteps(WM.d).length - 1; saveWM(); } V.keepScroll = true; render(); break; }
     case 'reopen': { const s = sess(w, d); s.status = ''; saveSess(w, d); V.keepScroll = true; render(); break; }
     case 'setbranch': S.settings.branch = v; touch('meta/settings'); V.keepScroll = true; render(); toast('Pull-up branch set to ' + v); break;
     case 'wk': { const r = wkDoc(+(b.closest('[data-w]')?.dataset.w || w)); r[b.dataset.k] = String(r[b.dataset.k]) === v ? '' : v; touch('weeks/' + ckid(w)); b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.v === String(r[b.dataset.k]))); break; }

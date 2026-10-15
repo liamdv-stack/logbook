@@ -1,5 +1,5 @@
 /* Offline support. Bump VERSION whenever the app changes so phones pick up the new files. */
-const VERSION = 'logbook-2026-10-14a';
+const VERSION = 'logbook-2026-10-14b';
 const SHELL = ['./', './index.html', './config.js', './supabase.js', './program.js', './food.js', './app.js',
   './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './favicon.svg'];
 

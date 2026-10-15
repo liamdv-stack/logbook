@@ -118,8 +118,10 @@ function renderFood() {
   // totals
   const bar = (key, label, unit, tgt, val, cls) => `<div class="mrow"><span class="ml">${label}</span><span class="fb-track"><span class="fb-fill ${cls}" style="width:${Math.min(100, Math.round(val / tgt * 100))}%"></span></span><span class="mv num">${Math.round(val)}<small> / ${tgt} ${unit}</small></span></div>`;
   h += `<div class="blk"><div class="bh"><h3>Today</h3><span class="cnt num">${Math.round(pl.kcal - t.kcal)} kcal left</span></div><div class="bb">
-    ${bar('kcal', 'Calories', 'kcal', pl.kcal, t.kcal, '')}${bar('p', 'Protein', 'g', pl.p, t.p, 'p')}${bar('c', 'Carbs', 'g', pl.c, t.c, 'c')}${bar('f', 'Fat', 'g', pl.f, t.f, 'f')}${bar('fib', 'Fibre', 'g', pl.fib, t.fib, 'fib')}
-    <div class="mrow"><span class="ml">Sugar</span><span></span><span class="mv num">${Math.round(t.sug)}<small> g</small></span></div>
+    ${bar('kcal', 'Calories', 'kcal', pl.kcal, t.kcal, '')}${bar('p', 'Protein', 'g', pl.p, t.p, 'p')}
+    <details class="exmore"><summary>Carbs ${Math.round(t.c)} · Fat ${Math.round(t.f)} · Fibre ${Math.round(t.fib)} · Sugar ${Math.round(t.sug)} g</summary>
+    ${bar('c', 'Carbs', 'g', pl.c, t.c, 'c')}${bar('f', 'Fat', 'g', pl.f, t.f, 'f')}${bar('fib', 'Fibre', 'g', pl.fib, t.fib, 'fib')}
+    <div class="mrow"><span class="ml">Sugar</span><span></span><span class="mv num">${Math.round(t.sug)}<small> g</small></span></div></details>
     <details class="exmore"><summary>How the target is set</summary>
       <p class="small">${pl.provisional ? `Provisional: a standard formula for your weight (${pl.w} kg), height and age, plus a ${SURPLUS} kcal surplus. After 14 days of logging and morning weigh-ins the app replaces it with your real maintenance.` : `Calibrated from your own logs. Every Monday it checks last week: gain above 0.5 kg → −${STEP} kcal, below 0.25 kg → +${STEP} kcal.`}</p>
       ${pl.note ? `<p class="small" style="color:var(--warn)">${esc(pl.note)}</p>` : ''}
